@@ -57,7 +57,8 @@ jobs:
             --max-msgs=-1 \
             --max-age=-1 \
             --max-bytes=-1 \
-            --replicas 1
+            --replicas 1 \
+            --force
 
       - name: Verify stream created
         run: |
