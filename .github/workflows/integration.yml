@@ -42,28 +42,9 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Install NATS CLI
-        run: |
-          curl -sf https://binaries.nats.dev/nats-io/natscli/nats@latest | sh
-          sudo mv nats /usr/local/bin/
-
-      - name: Create JetStream stream
-        run: |
-          printf "y\ny\n" | nats --server nats://localhost:4222 stream add events \
-            --subjects "vitals.recorded,patient.alert.raised,dispatch.created,dispatch.assigned" \
-            --storage memory \
-            --retention limits \
-            --discard old \
-            --max-msgs=-1 \
-            --max-age=-1 \
-            --max-bytes=-1 \
-            --replicas 1 || true
-
-      - name: Verify stream created
-        run: |
-          nats --server nats://localhost:4222 stream info events
-          nats --server nats://localhost:4222 stream subjects events
-
+      # Note: JetStream stream is created programmatically by the gateway on startup
+      # This avoids NATS CLI version compatibility issues with --yes/--force flags
+      
       - name: Copy contracts (or use submodule)
         run: |
           # This assumes contracts are in repo
