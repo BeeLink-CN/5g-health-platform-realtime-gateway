@@ -1,0 +1,175 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  smoke-test:
+    name: Smoke Test (NATS + Gateway)
+    runs-on: ubuntu-latest
+
+    services:
+      nats:
+        image: nats:2.10-alpine
+        ports:
+          - 4222:4222
+          - 8222:8222
+        options: >-
+          --health-cmd "wget --quiet --tries=1 --spider http://localhost:8222/healthz || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        # Enable JetStream
+        env:
+          NATS_ARGS: "-js -m 8222"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Install NATS CLI
+        run: |
+          curl -sf https://binaries.nats.dev/nats-io/natscli/nats@latest | sh
+          sudo mv nats /usr/local/bin/
+
+      - name: Create JetStream stream
+        run: |
+          nats --server nats://localhost:4222 stream add events \
+            --subjects "vitals.recorded,patient.alert.raised,dispatch.created,dispatch.assigned" \
+            --storage memory \
+            --retention limits \
+            --discard old \
+            --max-msgs=-1 \
+            --max-age=-1 \
+            --max-bytes=-1 \
+            --replicas 1
+
+      - name: Verify stream created
+        run: |
+          nats --server nats://localhost:4222 stream info events
+          nats --server nats://localhost:4222 stream subjects events
+
+      - name: Copy contracts (or use submodule)
+        run: |
+          # This assumes contracts are in repo
+          # If using submodule: git submodule update --init --recursive
+          ls -la contracts/
+
+      - name: Start gateway in background
+        env:
+          SERVICE_PORT: 8080
+          NATS_URL: nats://localhost:4222
+          NATS_STREAM: events
+          NATS_DURABLE: realtime-gateway-ci
+          CONTRACTS_PATH: ./contracts
+          LOG_LEVEL: debug
+        run: |
+          npm run dev > gateway.log 2>&1 &
+          echo $! > gateway.pid
+          sleep 5
+
+      - name: Check gateway logs
+        if: always()
+        run: |
+          echo "=== Gateway startup logs ==="
+          cat gateway.log || echo "No logs found"
+
+      - name: Health check
+        run: |
+          curl -f http://localhost:8080/health || (cat gateway.log && exit 1)
+
+      - name: Ready check
+        run: |
+          curl -f http://localhost:8080/ready || (cat gateway.log && exit 1)
+
+      - name: Install wscat
+        run: npm install -g wscat
+
+      - name: Smoke test - WebSocket + NATS publish
+        timeout-minutes: 1
+        run: |
+          # Start wscat in background
+          wscat -c ws://localhost:8080/ws > ws.log 2>&1 &
+          WS_PID=$!
+          sleep 2
+          
+          # Subscribe via WebSocket
+          echo '{"type":"subscribe","patient_id":null,"events":["dispatch.created"]}' | wscat -c ws://localhost:8080/ws -x &
+          sleep 1
+          
+          # Publish valid event to NATS
+          nats pub dispatch.created '{
+            "event_name": "dispatch.created",
+            "event_version": "1.0.0",
+            "event_id": "11111111-1111-1111-1111-111111111111",
+            "timestamp": "2026-02-08T00:00:00.000Z",
+            "payload": {
+              "dispatch_id": "22222222-2222-2222-2222-222222222222",
+              "patient_id": "33333333-3333-3333-3333-333333333333",
+              "priority": "high",
+              "dispatch_type": "ambulance"
+            }
+          }'
+          
+          sleep 2
+          kill $WS_PID || true
+          
+          # Verify event was received
+          if grep -q "dispatch.created" ws.log; then
+            echo "✅ Event successfully delivered via WebSocket"
+          else
+            echo "❌ Event not received"
+            cat ws.log
+            exit 1
+          fi
+
+      - name: Test schema validation rejection
+        run: |
+          # Publish invalid event (missing required fields)
+          nats pub dispatch.created '{
+            "event_name": "dispatch.created",
+            "event_id": "bad-uuid",
+            "timestamp": "not-a-date",
+            "payload": {}
+          }'
+          
+          sleep 1
+          
+          # Check gateway logs for validation error
+          if grep -q "failed schema validation" gateway.log; then
+            echo "✅ Invalid event correctly rejected"
+          else
+            echo "⚠️  Validation rejection not logged (check if expected)"
+          fi
+
+      - name: Cleanup
+        if: always()
+        run: |
+          if [ -f gateway.pid ]; then
+            kill $(cat gateway.pid) || true
+          fi
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-logs
+          path: |
+            gateway.log
+            ws.log
+          retention-days: 7

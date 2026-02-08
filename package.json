@@ -1,22 +1,26 @@
 {
   "name": "5g-health-platform-realtime-gateway",
   "version": "1.0.0",
-  "description": "Real-time WebSocket gateway delivering NATS JetStream events to dashboard and mobile clients",
+  "description": "Real-time WebSocket gateway for 5G Health Platform",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "dev:auto": "powershell -ExecutionPolicy Bypass -File scripts/dev.ps1",
     "build": "tsc",
+    "typecheck": "tsc --noEmit",
     "start": "node dist/index.js",
     "test": "jest",
-    "typecheck": "tsc --noEmit",
-    "lint": "eslint src --ext .ts"
+    "test:watch": "jest --watch",
+    "lint": "eslint src --ext .ts",
+    "smoke": "node scripts/smoke-test.js"
   },
   "keywords": [
     "websocket",
     "nats",
     "jetstream",
-    "gateway",
-    "realtime"
+    "real-time",
+    "5g",
+    "health"
   ],
   "author": "",
   "license": "MIT",
@@ -42,8 +46,5 @@
     "ts-jest": "^29.1.1",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3"
-  },
-  "engines": {
-    "node": ">=18.0.0"
   }
 }
