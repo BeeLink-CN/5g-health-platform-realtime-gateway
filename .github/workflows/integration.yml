@@ -11,16 +11,41 @@ jobs:
     name: Smoke Test (NATS + Gateway)
     runs-on: ubuntu-latest
 
-    services:
-      nats:
-        image: nats:alpine
-        ports:
-          - 4222:4222
-          - 8222:8222
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Start NATS with JetStream
+        run: |
+          echo "🚀 Starting NATS with JetStream enabled..."
+          docker run -d --name nats-jetstream -p 4222:4222 -p 8222:8222 nats:alpine -js -m 8222
+          
+          echo "⏳ Waiting for NATS to be ready..."
+          for i in {1..30}; do
+            # Check if port 4222 is open using multiple methods
+            if timeout 1 bash -c 'echo > /dev/tcp/localhost/4222' 2>/dev/null; then
+              echo "✅ NATS client port (4222) is accepting connections"
+              break
+            fi
+            echo "Waiting for NATS port... ($i/30)"
+            sleep 1
+          done
+          
+          echo "⏳ Verifying JetStream is enabled..."
+          for i in {1..10}; do
+            if curl -sf http://localhost:8222/jsz | grep -q "config"; then
+              echo "✅ JetStream is enabled and responding"
+              docker logs nats-jetstream
+              exit 0
+            fi
+            echo "Waiting for JetStream... ($i/10)"
+            sleep 1
+          done
+          
+          echo "❌ NATS/JetStream verification failed"
+          docker logs nats-jetstream
+          curl -v http://localhost:8222/jsz || true
+          exit 1
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -35,36 +60,7 @@ jobs:
         run: npm run build
 
       # Note: JetStream stream is created programmatically by the gateway on startup
-      # This avoids NATS CLI version compatibility issues with --yes/--force flags
       
-      - name: Wait for NATS to be fully ready
-        run: |
-          echo "⏳ Waiting for NATS JetStream to be ready..."
-          
-          # Wait for monitoring port (8222)
-          for i in {1..30}; do
-            if curl -sf http://localhost:8222/healthz > /dev/null 2>&1; then
-              echo "✅ NATS monitoring port (8222) is healthy"
-              break
-            fi
-            echo "Waiting for NATS monitoring... ($i/30)"
-            sleep 2
-          done
-          
-          # Wait for client port (4222) - critical for actual connections
-          for i in {1..30}; do
-            if nc -zv localhost 4222 2>&1 | grep -q succeeded; then
-              echo "✅ NATS client port (4222) is accepting connections"
-              sleep 3  # Extra time for JetStream initialization
-              exit 0
-            fi
-            echo "Waiting for NATS client port... ($i/30)"
-            sleep 2
-          done
-          
-          echo "❌ NATS did not become ready in time"
-          exit 1
-
       - name: Copy contracts (or use submodule)
         run: |
           # This assumes contracts are in repo
@@ -111,6 +107,11 @@ jobs:
 
       - name: Install wscat
         run: npm install -g wscat
+
+      - name: Install NATS CLI
+        run: |
+          curl -sf https://binaries.nats.dev/nats-io/natscli/nats@latest | sh
+          sudo mv nats /usr/local/bin/
 
       - name: Smoke test - WebSocket + NATS publish
         timeout-minutes: 1
@@ -175,6 +176,8 @@ jobs:
           if [ -f gateway.pid ]; then
             kill $(cat gateway.pid) || true
           fi
+          docker stop nats-jetstream || true
+          docker rm nats-jetstream || true
 
       - name: Upload logs
         if: always()
