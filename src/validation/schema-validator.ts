@@ -1,6 +1,8 @@
 import fs from 'fs';
 import path from 'path';
-import Ajv, { ValidateFunction } from 'ajv';
+import crypto from 'crypto';
+import Ajv2020 from 'ajv/dist/2020';
+import type { ValidateFunction } from 'ajv';
 import addFormats from 'ajv-formats';
 import { logger } from '../utils/logger';
 import { config } from '../config';
@@ -18,16 +20,23 @@ const EVENT_SCHEMA_PATHS: Record<EventName, string> = {
     'dispatch.assigned': 'events/dispatch-assigned.json',
 };
 
+function sha256(s: string): string {
+    return crypto.createHash('sha256').update(s).digest('hex');
+}
+
 export class SchemaValidator {
-    private ajv: Ajv;
+    private ajv: Ajv2020;
     private validators: Map<EventName, ValidateFunction> = new Map();
 
     constructor() {
-        this.ajv = new Ajv({
+        // Ajv2020 enables draft 2020-12 features/meta-schema handling.
+        this.ajv = new Ajv2020({
             allErrors: true,
-            strict: false,  // Allow draft-2020-12 and other meta-schemas
-            validateSchema: false,  // Skip meta-schema validation
+            strict: true,
+            validateSchema: false,  // Skip meta-schema validation for MVP
+            addUsedSchema: false,
         });
+
         addFormats(this.ajv);
     }
 
@@ -42,45 +51,85 @@ export class SchemaValidator {
 
     async loadSchemas(): Promise<void> {
         const root = config.contracts.path;
+
         if (!fs.existsSync(root)) {
             throw new Error(
-                `Contracts path not found: ${root}. Add contracts submodule and set CONTRACTS_PATH correctly.`
+                `Contracts path not found: ${root}. Set CONTRACTS_PATH to the contracts root (containing events/ and domain/).`
             );
         }
 
         logger.info({ root }, 'Loading contracts schemas into AJV registry...');
 
-        // 1) Load + add ALL schemas first (so $refs resolve)
+        // 1) Load + register ALL schemas first (so $refs resolve), but dedupe by $id.
         const files = this.getAllSchemaFiles(root);
-        logger.info({ count: files.length }, 'Found schema files');
+
+        // Track $id -> { file, hash } so we can detect true conflicts
+        const seen = new Map<string, { file: string; hash: string }>();
 
         for (const file of files) {
             const raw = fs.readFileSync(file, 'utf-8');
+            const hash = sha256(raw);
             const schema = JSON.parse(raw);
 
             if (!schema.$id) {
                 throw new Error(`Missing $id in schema: ${path.relative(root, file)}`);
             }
 
-            try {
-                this.ajv.addSchema(schema, schema.$id);
-                logger.info({ schemaId: schema.$id, file: path.relative(root, file) }, 'Loaded schema');
-            } catch (err) {
-                logger.error({ schemaId: schema.$id, file: path.relative(root, file), err }, 'Failed to add schema');
-                throw err;
+            const id: string = schema.$id;
+
+            const prev = seen.get(id);
+            if (prev) {
+                if (prev.hash !== hash) {
+                    // Same $id, different content -> contracts repo problem (must be fixed)
+                    throw new Error(
+                        `Duplicate $id with different content:\n` +
+                        `  $id: ${id}\n` +
+                        `  first: ${path.relative(root, prev.file)}\n` +
+                        `  second: ${path.relative(root, file)}\n`
+                    );
+                }
+                // Same $id, same content -> ignore duplicate safely
+                logger.warn(
+                    { id, file: path.relative(root, file), firstSeen: path.relative(root, prev.file) },
+                    'Duplicate schema $id found (identical content) - skipping re-registration'
+                );
+                continue;
             }
+
+            // Avoid "schema already exists" even if AJV already has it (defensive)
+            if (!this.ajv.getSchema(id)) {
+                this.ajv.addSchema(schema, id);
+            }
+
+            seen.set(id, { file, hash });
         }
 
-        // 2) Compile the four event schemas and key by event_name
+        // 2) Compile the 4 event schemas and key by event_name
         for (const [eventName, relPath] of Object.entries(EVENT_SCHEMA_PATHS) as [EventName, string][]) {
             const fullPath = path.join(root, relPath);
+
+            if (!fs.existsSync(fullPath)) {
+                throw new Error(
+                    `Event schema missing for ${eventName}: ${path.relative(root, fullPath)}`
+                );
+            }
+
             const raw = fs.readFileSync(fullPath, 'utf-8');
             const schema = JSON.parse(raw);
 
-            // Schema already in registry from step 1, just compile it
+            if (!schema.$id) {
+                throw new Error(`Missing $id in event schema: ${relPath}`);
+            }
+
+            // It should already be in registry from step (1), but keep this safe:
+            if (!this.ajv.getSchema(schema.$id)) {
+                this.ajv.addSchema(schema, schema.$id);
+            }
+
             const validate = this.ajv.compile(schema);
             this.validators.set(eventName, validate);
-            logger.info({ eventName, schema: relPath }, 'Compiled event schema');
+
+            logger.info({ eventName, schema: relPath, schemaId: schema.$id }, 'Compiled event schema');
         }
 
         logger.info({ count: this.validators.size }, 'Event validators ready');
@@ -92,6 +141,7 @@ export class SchemaValidator {
             logger.error({ eventName }, 'Validator missing for event - refusing to send');
             return false;
         }
+
         const ok = v(data);
         if (!ok) {
             logger.error({ eventName, errors: v.errors }, 'Event failed schema validation - dropped');
