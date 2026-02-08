@@ -15,55 +15,96 @@ export class NatsService {
     private consuming = false;
 
     async connect(): Promise<void> {
-        logger.info({ url: config.nats.url }, 'Connecting to NATS...');
-        this.nc = await connect({
-            servers: config.nats.url,
-            name: '5g-health-platform-realtime-gateway',
-            maxReconnectAttempts: -1,
-            reconnectTimeWait: 1000,
-        });
+        const maxRetries = 10;
+        const baseDelay = 1000; // 1 second
 
-        this.js = this.nc.jetstream();
-        this.jsm = await this.nc.jetstreamManager();
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                logger.info({ url: config.nats.url, attempt, maxRetries }, 'Connecting to NATS...');
 
-        (async () => {
-            if (!this.nc) return;
-            for await (const s of this.nc.status()) {
-                logger.info({ status: s.type, data: s.data }, 'NATS status');
+                this.nc = await connect({
+                    servers: config.nats.url,
+                    name: '5g-health-platform-realtime-gateway',
+                    maxReconnectAttempts: -1,
+                    reconnectTimeWait: 1000,
+                    timeout: 5000, // 5 second connection timeout
+                });
+
+                this.js = this.nc.jetstream();
+                this.jsm = await this.nc.jetstreamManager();
+
+                (async () => {
+                    if (!this.nc) return;
+                    for await (const s of this.nc.status()) {
+                        logger.info({ status: s.type, data: s.data }, 'NATS status');
+                    }
+                })();
+
+                logger.info('Connected to NATS JetStream');
+
+                // Ensure stream exists (create if missing)
+                await this.ensureStream();
+                return; // Success!
+
+            } catch (err: any) {
+                logger.warn({
+                    err: err.message,
+                    attempt,
+                    maxRetries,
+                    nextRetryIn: attempt < maxRetries ? baseDelay * Math.pow(2, attempt - 1) : null
+                }, 'NATS connection failed, retrying...');
+
+                if (attempt === maxRetries) {
+                    logger.error({ err }, 'Failed to connect to NATS after maximum retries');
+                    throw new Error(`NATS connection failed after ${maxRetries} attempts: ${err.message}`);
+                }
+
+                // Exponential backoff: 1s, 2s, 4s, 8s, 16s, 32s, 64s...
+                const delay = baseDelay * Math.pow(2, attempt - 1);
+                await new Promise(resolve => setTimeout(resolve, delay));
             }
-        })();
-
-        logger.info('Connected to NATS JetStream');
-
-        // Ensure stream exists (create if missing)
-        await this.ensureStream();
+        }
     }
 
     private async ensureStream(): Promise<void> {
         if (!this.jsm) throw new Error('JetStream Manager not initialized');
 
-        try {
-            const info = await this.jsm.streams.info(config.nats.stream);
-            logger.info({ stream: config.nats.stream, subjects: info.config.subjects }, 'JetStream stream found');
-        } catch {
-            logger.info({ stream: config.nats.stream }, 'JetStream stream not found, creating...');
-            await this.jsm.streams.add({
-                name: config.nats.stream,
-                subjects: [
-                    'vitals.recorded',
-                    'patient.alert.raised',
-                    'dispatch.created',
-                    'dispatch.assigned',
-                ],
-                storage: StorageType.Memory,
-                retention: RetentionPolicy.Limits,
-                discard: DiscardPolicy.Old,
-                max_msgs: -1, // Unlimited messages
-                max_age: 0, // No age limit
-                max_bytes: -1, // Unlimited bytes
-                num_replicas: 1,
-            });
-            logger.info({ stream: config.nats.stream }, 'JetStream stream created');
+        const maxRetries = 5;
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                const info = await this.jsm.streams.info(config.nats.stream);
+                logger.info({ stream: config.nats.stream, subjects: info.config.subjects }, 'JetStream stream found');
+                return;
+            } catch {
+                try {
+                    logger.info({ stream: config.nats.stream, attempt }, 'JetStream stream not found, creating...');
+                    await this.jsm.streams.add({
+                        name: config.nats.stream,
+                        subjects: [
+                            'vitals.recorded',
+                            'patient.alert.raised',
+                            'dispatch.created',
+                            'dispatch.assigned',
+                        ],
+                        storage: StorageType.Memory,
+                        retention: RetentionPolicy.Limits,
+                        discard: DiscardPolicy.Old,
+                        max_msgs: -1,
+                        max_age: 0,
+                        max_bytes: -1,
+                        num_replicas: 1,
+                    });
+                    logger.info({ stream: config.nats.stream }, 'JetStream stream created');
+                    return;
+                } catch (err: any) {
+                    if (attempt === maxRetries) {
+                        logger.error({ err }, 'Failed to create JetStream stream after retries');
+                        throw err;
+                    }
+                    logger.warn({ err: err.message, attempt }, 'Stream creation failed, retrying...');
+                    await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+                }
+            }
         }
     }
 
