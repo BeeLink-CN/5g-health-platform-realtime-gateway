@@ -40,6 +40,35 @@ That's it! The `dev:auto` script will:
 - Auto-create the JetStream stream if missing
 - Start the gateway with all endpoints displayed
 
+## ⚠️ WIP: Runtime Verification
+
+**Status**: Code complete ✅ | Build passes ✅ | Schemas compile ✅ | Runtime tests: blocked by local env setup
+
+**What's Verified**:
+- TypeScript compilation + production build
+- All 4 event schemas load (Ajv2020 draft-2020-12)
+- Unit tests pass
+
+**What Remains**: 8 runtime verification tests (see [WIP-runtime-testing.md](docs/WIP-runtime-testing.md))
+
+### Manual Run (3 Terminals, Windows PowerShell)
+
+```powershell
+# Terminal A: Start NATS
+cd C:\Users\senso\tools\nats\nats-server-v2.12.4-windows-amd64
+.\nats-server.exe -js -m 8223  # Use 8223 if 8222 conflicts
+
+# Terminal B: Start Gateway (port 8081 to avoid Apache on 8080)
+cd "C:\Users\senso\OneDrive\Masaüstü\5G Project\5g-health-platform-realtime-gateway"
+$env:SERVICE_PORT="8081"; $env:NATS_URL="nats://127.0.0.1:4222"; $env:NATS_STREAM="events"; $env:NATS_DURABLE="realtime-gateway-local"; $env:CONTRACTS_PATH="./contracts"; npm run dev
+
+# Terminal C: Test (must use 8081, NOT 8080!)
+curl.exe -i http://localhost:8081/health  # Must NOT show "Server: Apache"
+$env:GATEWAY_WS="ws://localhost:8081/ws"; npm run smoke
+```
+
+See [docs/WIP-runtime-testing.md](docs/WIP-runtime-testing.md) for details.
+
 ## Architecture
 
 ```
