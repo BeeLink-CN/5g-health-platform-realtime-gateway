@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  realtime-gateway:
+    build: .
+    container_name: 5g-realtime-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - SERVICE_PORT=8080
+      - NATS_URL=nats://nats:4222
+      - NATS_STREAM=events
+      - NATS_DURABLE=realtime-gateway
+      - CONTRACTS_PATH=/app/contracts/schemas
+      - LOG_LEVEL=info
+      - NODE_ENV=production
+    volumes:
+      - ./contracts:/app/contracts:ro
+    networks:
+      - 5g-platform-network
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  5g-platform-network:
+    external: true
