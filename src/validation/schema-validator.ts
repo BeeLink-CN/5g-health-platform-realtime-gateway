@@ -90,6 +90,10 @@ export class SchemaValidator {
         return !!ok;
     }
 
+    hasSchema(eventName: string): boolean {
+        return this.validators.has(eventName as EventName);
+    }
+
     getSchemaCount(): number {
         return this.validators.size;
     }
