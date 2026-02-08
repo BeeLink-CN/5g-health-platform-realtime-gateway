@@ -1,0 +1,65 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://api.5g-health.example.com/schemas/events/dispatch-assigned.json",
+    "title": "Dispatch Assigned Event",
+    "description": "Event published when a dispatch is assigned to a responder",
+    "type": "object",
+    "required": [
+        "event_name",
+        "event_version",
+        "event_id",
+        "timestamp",
+        "payload"
+    ],
+    "properties": {
+        "event_name": {
+            "type": "string",
+            "const": "dispatch.assigned",
+            "description": "Event type identifier"
+        },
+        "event_version": {
+            "type": "string",
+            "pattern": "^\\d+\\.\\d+\\.\\d+$",
+            "description": "Semantic version of this event schema",
+            "examples": [
+                "1.0.0"
+            ]
+        },
+        "event_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Unique identifier for this event instance"
+        },
+        "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Event occurrence timestamp (ISO 8601, UTC)"
+        },
+        "payload": {
+            "type": "object",
+            "required": [
+                "dispatch_id",
+                "responder_id"
+            ],
+            "properties": {
+                "dispatch_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "ID of the dispatch being assigned"
+                },
+                "responder_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "ID of the responder assigned"
+                },
+                "estimated_arrival": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Estimated arrival time (ISO 8601, UTC)"
+                }
+            },
+            "additionalProperties": false
+        }
+    },
+    "additionalProperties": false
+}

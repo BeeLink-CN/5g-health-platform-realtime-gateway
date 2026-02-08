@@ -1,0 +1,53 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://api.5g-health.example.com/schemas/events/patient-alert-raised.json",
+    "title": "Patient Alert Raised Event",
+    "description": "Event published when a patient alert is triggered",
+    "type": "object",
+    "required": [
+        "event_name",
+        "event_version",
+        "event_id",
+        "timestamp",
+        "payload"
+    ],
+    "properties": {
+        "event_name": {
+            "type": "string",
+            "const": "patient.alert.raised",
+            "description": "Event type identifier"
+        },
+        "event_version": {
+            "type": "string",
+            "pattern": "^\\d+\\.\\d+\\.\\d+$",
+            "description": "Semantic version of this event schema",
+            "examples": [
+                "1.0.0"
+            ]
+        },
+        "event_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Unique identifier for this event instance"
+        },
+        "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Event occurrence timestamp (ISO 8601, UTC)"
+        },
+        "payload": {
+            "type": "object",
+            "required": [
+                "alert"
+            ],
+            "properties": {
+                "alert": {
+                    "$ref": "../domain/alert.json",
+                    "description": "The alert that was raised"
+                }
+            },
+            "additionalProperties": false
+        }
+    },
+    "additionalProperties": false
+}

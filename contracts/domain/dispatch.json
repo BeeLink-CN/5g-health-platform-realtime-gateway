@@ -1,0 +1,86 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://api.5g-health.example.com/schemas/domain/dispatch.json",
+    "title": "Dispatch",
+    "description": "Emergency dispatch request",
+    "type": "object",
+    "required": [
+        "id",
+        "patient_id",
+        "alert_id",
+        "priority",
+        "status",
+        "created_at",
+        "updated_at"
+    ],
+    "properties": {
+        "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Dispatch unique identifier"
+        },
+        "patient_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Patient requiring emergency response"
+        },
+        "alert_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Alert that triggered the dispatch"
+        },
+        "priority": {
+            "type": "string",
+            "enum": [
+                "critical",
+                "high",
+                "medium",
+                "low"
+            ],
+            "description": "Dispatch priority level"
+        },
+        "status": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "assigned",
+                "en_route",
+                "arrived",
+                "completed",
+                "cancelled"
+            ],
+            "description": "Current dispatch status"
+        },
+        "responder_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Assigned responder ID"
+        },
+        "estimated_arrival": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Estimated arrival time (ISO 8601, UTC)"
+        },
+        "actual_arrival": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Actual arrival time (ISO 8601, UTC)"
+        },
+        "notes": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "Additional notes for responders"
+        },
+        "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Dispatch creation timestamp (ISO 8601, UTC)"
+        },
+        "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Dispatch last update timestamp (ISO 8601, UTC)"
+        }
+    },
+    "additionalProperties": false
+}

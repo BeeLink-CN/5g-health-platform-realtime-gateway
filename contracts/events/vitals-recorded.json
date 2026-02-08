@@ -1,0 +1,59 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://api.5g-health.example.com/schemas/events/vitals-recorded.json",
+    "title": "Vitals Recorded Event",
+    "description": "Event published when patient vitals are recorded",
+    "type": "object",
+    "required": [
+        "event_name",
+        "event_version",
+        "event_id",
+        "timestamp",
+        "payload"
+    ],
+    "properties": {
+        "event_name": {
+            "type": "string",
+            "const": "vitals.recorded",
+            "description": "Event type identifier"
+        },
+        "event_version": {
+            "type": "string",
+            "pattern": "^\\d+\\.\\d+\\.\\d+$",
+            "description": "Semantic version of this event schema",
+            "examples": [
+                "1.0.0"
+            ]
+        },
+        "event_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Unique identifier for this event instance"
+        },
+        "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Event occurrence timestamp (ISO 8601, UTC)"
+        },
+        "payload": {
+            "type": "object",
+            "required": [
+                "patient_id",
+                "vitals"
+            ],
+            "properties": {
+                "patient_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "ID of the patient whose vitals were recorded"
+                },
+                "vitals": {
+                    "$ref": "../domain/vitals.json",
+                    "description": "The recorded vital signs"
+                }
+            },
+            "additionalProperties": false
+        }
+    },
+    "additionalProperties": false
+}

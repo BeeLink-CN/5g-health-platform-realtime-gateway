@@ -1,0 +1,53 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://api.5g-health.example.com/schemas/events/dispatch-created.json",
+    "title": "Dispatch Created Event",
+    "description": "Event published when an emergency dispatch is created",
+    "type": "object",
+    "required": [
+        "event_name",
+        "event_version",
+        "event_id",
+        "timestamp",
+        "payload"
+    ],
+    "properties": {
+        "event_name": {
+            "type": "string",
+            "const": "dispatch.created",
+            "description": "Event type identifier"
+        },
+        "event_version": {
+            "type": "string",
+            "pattern": "^\\d+\\.\\d+\\.\\d+$",
+            "description": "Semantic version of this event schema",
+            "examples": [
+                "1.0.0"
+            ]
+        },
+        "event_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Unique identifier for this event instance"
+        },
+        "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Event occurrence timestamp (ISO 8601, UTC)"
+        },
+        "payload": {
+            "type": "object",
+            "required": [
+                "dispatch"
+            ],
+            "properties": {
+                "dispatch": {
+                    "$ref": "../domain/dispatch.json",
+                    "description": "The dispatch that was created"
+                }
+            },
+            "additionalProperties": false
+        }
+    },
+    "additionalProperties": false
+}

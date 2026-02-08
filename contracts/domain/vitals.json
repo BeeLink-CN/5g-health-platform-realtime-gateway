@@ -1,0 +1,78 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://api.5g-health.example.com/schemas/domain/vitals.json",
+    "title": "Vitals",
+    "description": "Patient vital signs measurement",
+    "type": "object",
+    "required": [
+        "id",
+        "patient_id",
+        "recorded_at",
+        "heart_rate",
+        "blood_pressure",
+        "temperature",
+        "oxygen_saturation"
+    ],
+    "properties": {
+        "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Vitals record unique identifier"
+        },
+        "patient_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Associated patient ID"
+        },
+        "recorded_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp when vitals were recorded (ISO 8601, UTC)"
+        },
+        "heart_rate": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 300,
+            "description": "Heart rate in beats per minute (bpm)"
+        },
+        "blood_pressure": {
+            "type": "object",
+            "required": [
+                "systolic",
+                "diastolic"
+            ],
+            "properties": {
+                "systolic": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 300,
+                    "description": "Systolic pressure in mmHg"
+                },
+                "diastolic": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 200,
+                    "description": "Diastolic pressure in mmHg"
+                }
+            },
+            "additionalProperties": false
+        },
+        "temperature": {
+            "type": "number",
+            "minimum": 30.0,
+            "maximum": 45.0,
+            "description": "Body temperature in Celsius"
+        },
+        "oxygen_saturation": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Blood oxygen saturation percentage (SpO2)"
+        },
+        "device_id": {
+            "type": "string",
+            "description": "ID of the monitoring device"
+        }
+    },
+    "additionalProperties": false
+}

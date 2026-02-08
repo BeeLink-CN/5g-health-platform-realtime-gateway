@@ -1,0 +1,84 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://api.5g-health.example.com/schemas/domain/alert.json",
+    "title": "Alert",
+    "description": "Patient alert notification",
+    "type": "object",
+    "required": [
+        "id",
+        "patient_id",
+        "severity",
+        "type",
+        "message",
+        "status",
+        "created_at"
+    ],
+    "properties": {
+        "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Alert unique identifier"
+        },
+        "patient_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Patient who triggered the alert"
+        },
+        "severity": {
+            "type": "string",
+            "enum": [
+                "critical",
+                "high",
+                "medium",
+                "low"
+            ],
+            "description": "Alert severity level"
+        },
+        "type": {
+            "type": "string",
+            "enum": [
+                "vitals_abnormal",
+                "fall_detected",
+                "sos_triggered",
+                "device_offline",
+                "medication_missed"
+            ],
+            "description": "Type of alert"
+        },
+        "message": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Human-readable alert message"
+        },
+        "status": {
+            "type": "string",
+            "enum": [
+                "open",
+                "acknowledged",
+                "resolved",
+                "dismissed"
+            ],
+            "description": "Current alert status"
+        },
+        "vitals_snapshot": {
+            "$ref": "vitals.json",
+            "description": "Vitals at the time of alert (if applicable)"
+        },
+        "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Alert creation timestamp (ISO 8601, UTC)"
+        },
+        "acknowledged_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Alert acknowledgment timestamp (ISO 8601, UTC)"
+        },
+        "resolved_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Alert resolution timestamp (ISO 8601, UTC)"
+        }
+    },
+    "additionalProperties": false
+}

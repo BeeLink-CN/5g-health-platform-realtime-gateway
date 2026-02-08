@@ -1,0 +1,84 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://api.5g-health.example.com/schemas/domain/patient.json",
+    "title": "Patient",
+    "description": "Patient entity in the 5G health platform",
+    "type": "object",
+    "required": [
+        "id",
+        "first_name",
+        "last_name",
+        "date_of_birth",
+        "status",
+        "location",
+        "created_at",
+        "updated_at"
+    ],
+    "properties": {
+        "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Patient unique identifier"
+        },
+        "first_name": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "Patient first name"
+        },
+        "last_name": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "Patient last name"
+        },
+        "date_of_birth": {
+            "type": "string",
+            "format": "date",
+            "description": "Patient date of birth (YYYY-MM-DD)"
+        },
+        "status": {
+            "type": "string",
+            "enum": [
+                "active",
+                "inactive",
+                "critical"
+            ],
+            "description": "Current patient status"
+        },
+        "location": {
+            "$ref": "location.json",
+            "description": "Patient current location"
+        },
+        "emergency_contact": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "description": "Emergency contact name"
+                },
+                "phone": {
+                    "type": "string",
+                    "pattern": "^\\+?[1-9]\\d{1,14}$",
+                    "description": "E.164 format phone number"
+                }
+            },
+            "description": "Emergency contact information"
+        },
+        "medical_notes": {
+            "type": "string",
+            "maxLength": 2000,
+            "description": "Medical history and notes"
+        },
+        "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Record creation timestamp (ISO 8601, UTC)"
+        },
+        "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Record last update timestamp (ISO 8601, UTC)"
+        }
+    },
+    "additionalProperties": false
+}
