@@ -49,7 +49,7 @@ jobs:
 
       - name: Create JetStream stream
         run: |
-          nats --server nats://localhost:4222 stream add --yes events \
+          nats --server nats://localhost:4222 stream add events \
             --subjects "vitals.recorded,patient.alert.raised,dispatch.created,dispatch.assigned" \
             --storage memory \
             --retention limits \
