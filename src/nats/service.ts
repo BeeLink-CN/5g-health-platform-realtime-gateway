@@ -1,4 +1,4 @@
-import { connect, NatsConnection, JetStreamClient, consumerOpts, JetStreamManager } from 'nats';
+import { connect, NatsConnection, JetStreamClient, consumerOpts, JetStreamManager, StorageType, RetentionPolicy, DiscardPolicy } from 'nats';
 import { logger } from '../utils/logger';
 import { config } from '../config';
 
@@ -34,6 +34,37 @@ export class NatsService {
         })();
 
         logger.info('Connected to NATS JetStream');
+
+        // Ensure stream exists (create if missing)
+        await this.ensureStream();
+    }
+
+    private async ensureStream(): Promise<void> {
+        if (!this.jsm) throw new Error('JetStream Manager not initialized');
+
+        try {
+            const info = await this.jsm.streams.info(config.nats.stream);
+            logger.info({ stream: config.nats.stream, subjects: info.config.subjects }, 'JetStream stream found');
+        } catch {
+            logger.info({ stream: config.nats.stream }, 'JetStream stream not found, creating...');
+            await this.jsm.streams.add({
+                name: config.nats.stream,
+                subjects: [
+                    'vitals.recorded',
+                    'patient.alert.raised',
+                    'dispatch.created',
+                    'dispatch.assigned',
+                ],
+                storage: StorageType.Memory,
+                retention: RetentionPolicy.Limits,
+                discard: DiscardPolicy.Old,
+                max_msgs: -1, // Unlimited messages
+                max_age: 0, // No age limit
+                max_bytes: -1, // Unlimited bytes
+                num_replicas: 1,
+            });
+            logger.info({ stream: config.nats.stream }, 'JetStream stream created');
+        }
     }
 
     isConnected(): boolean {

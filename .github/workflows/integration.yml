@@ -45,6 +45,19 @@ jobs:
       # Note: JetStream stream is created programmatically by the gateway on startup
       # This avoids NATS CLI version compatibility issues with --yes/--force flags
       
+      - name: Wait for NATS to be fully ready
+        run: |
+          echo "⏳ Waiting for NATS JetStream to be ready..."
+          for i in {1..30}; do
+            if curl -sf http://localhost:8222/healthz > /dev/null 2>&1; then
+              echo "✅ NATS is ready!"
+              sleep 2  # Extra time for JetStream initialization
+              break
+            fi
+            echo "Waiting for NATS... ($i/30)"
+            sleep 1
+          done
+
       - name: Copy contracts (or use submodule)
         run: |
           # This assumes contracts are in repo
@@ -62,7 +75,18 @@ jobs:
         run: |
           npm run dev > gateway.log 2>&1 &
           echo $! > gateway.pid
-          sleep 5
+          
+          echo "⏳ Waiting for gateway to start..."
+          for i in {1..30}; do
+            if curl -sf http://localhost:8080/health > /dev/null 2>&1; then
+              echo "✅ Gateway is ready!"
+              break
+            fi
+            echo "Waiting for gateway health check... ($i/30)"
+            sleep 1
+          done
+          
+          sleep 1  # Final stabilization
 
       - name: Check gateway logs
         if: always()
