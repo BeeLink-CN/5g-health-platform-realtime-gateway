@@ -55,6 +55,35 @@ try {
     $tcpTest = Test-NetConnection -ComputerName $natsHost.Split(":")[0] -Port $natsPort -InformationLevel Quiet -WarningAction SilentlyContinue
     if ($tcpTest) {
         Write-Host "✅ NATS is reachable at $natsHost:$natsPort" -ForegroundColor Green
+        
+        # Auto-create stream if NATS CLI is available
+        if (Get-Command nats -ErrorAction SilentlyContinue) {
+            Write-Host "🔍 Checking JetStream stream '$NatsStream'..." -ForegroundColor Cyan
+            
+            nats --server $NatsUrl stream info $NatsStream 2>&1 | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "📦 Creating stream '$NatsStream'..." -ForegroundColor Yellow
+                nats --server $NatsUrl stream add $NatsStream `
+                    --subjects "vitals.recorded,patient.alert.raised,dispatch.created,dispatch.assigned" `
+                    --storage file `
+                    --retention limits `
+                    --discard old `
+                    --defaults 2>&1 | Out-Null
+                
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host "✅ Stream '$NatsStream' created successfully" -ForegroundColor Green
+                }
+                else {
+                    Write-Host "⚠️  Could not create stream (may already exist or permissions issue)" -ForegroundColor Yellow
+                }
+            }
+            else {
+                Write-Host "✅ Stream '$NatsStream' already exists" -ForegroundColor Green
+            }
+        }
+        else {
+            Write-Host "💡 Tip: Install NATS CLI for automatic stream setup" -ForegroundColor Gray
+        }
     }
     else {
         Write-Host "⚠️  NATS not reachable at $natsHost:$natsPort" -ForegroundColor Yellow
