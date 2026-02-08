@@ -23,7 +23,11 @@ export class SchemaValidator {
     private validators: Map<EventName, ValidateFunction> = new Map();
 
     constructor() {
-        this.ajv = new Ajv({ allErrors: true, strict: true });
+        this.ajv = new Ajv({
+            allErrors: true,
+            strict: false,  // Allow draft-2020-12 and other meta-schemas
+            validateSchema: false,  // Skip meta-schema validation
+        });
         addFormats(this.ajv);
     }
 
@@ -48,6 +52,8 @@ export class SchemaValidator {
 
         // 1) Load + add ALL schemas first (so $refs resolve)
         const files = this.getAllSchemaFiles(root);
+        logger.info({ count: files.length }, 'Found schema files');
+
         for (const file of files) {
             const raw = fs.readFileSync(file, 'utf-8');
             const schema = JSON.parse(raw);
@@ -55,7 +61,14 @@ export class SchemaValidator {
             if (!schema.$id) {
                 throw new Error(`Missing $id in schema: ${path.relative(root, file)}`);
             }
-            this.ajv.addSchema(schema, schema.$id);
+
+            try {
+                this.ajv.addSchema(schema, schema.$id);
+                logger.info({ schemaId: schema.$id, file: path.relative(root, file) }, 'Loaded schema');
+            } catch (err) {
+                logger.error({ schemaId: schema.$id, file: path.relative(root, file), err }, 'Failed to add schema');
+                throw err;
+            }
         }
 
         // 2) Compile the four event schemas and key by event_name
@@ -64,11 +77,7 @@ export class SchemaValidator {
             const raw = fs.readFileSync(fullPath, 'utf-8');
             const schema = JSON.parse(raw);
 
-            // Ensure it's in registry and compile
-            if (schema.$id && !this.ajv.getSchema(schema.$id)) {
-                this.ajv.addSchema(schema, schema.$id);
-            }
-
+            // Schema already in registry from step 1, just compile it
             const validate = this.ajv.compile(schema);
             this.validators.set(eventName, validate);
             logger.info({ eventName, schema: relPath }, 'Compiled event schema');
