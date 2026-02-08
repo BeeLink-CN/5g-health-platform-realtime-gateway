@@ -140,6 +140,8 @@ export class NatsService {
             opts.ackExplicit();
             opts.deliverNew();
             opts.ackWait(30_000);
+            // Push consumer requires a deliver subject - use unique inbox for each consumer
+            opts.deliverTo(`_INBOX.${durable}`);
 
             const sub = await this.js.subscribe(subject, opts);
 
