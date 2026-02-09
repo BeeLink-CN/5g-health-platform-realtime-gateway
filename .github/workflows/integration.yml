@@ -122,7 +122,8 @@ jobs:
           mkfifo ws_input
           
           # Start WebSocket client reading from pipe, logging to ws.log
-          cat ws_input | wscat -c ws://localhost:8080/ws > ws.log 2>&1 &
+          # Use 127.0.0.1 to avoid IPv6 issues
+          cat ws_input | wscat -c ws://127.0.0.1:8080/ws > ws.log 2>&1 &
           WS_PID=$!
           sleep 2
           
@@ -131,17 +132,23 @@ jobs:
           sleep 2
           
           echo "📤 Publishing event to NATS..."
-          # Publish valid event to NATS
+          # Publish valid event matching dispatch-created.json schema
+          # Schema expects: payload.dispatch (referencing domain/dispatch.json)
           nats pub dispatch.created '{
             "event_name": "dispatch.created",
             "event_version": "1.0.0",
             "event_id": "11111111-1111-1111-1111-111111111111",
             "timestamp": "2026-02-08T00:00:00.000Z",
             "payload": {
-              "dispatch_id": "22222222-2222-2222-2222-222222222222",
-              "patient_id": "33333333-3333-3333-3333-333333333333",
-              "priority": "high",
-              "dispatch_type": "ambulance"
+              "dispatch": {
+                "id": "22222222-2222-2222-2222-222222222222",
+                "patient_id": "33333333-3333-3333-3333-333333333333",
+                "alert_id": "44444444-4444-4444-4444-444444444444",
+                "priority": "high",
+                "status": "pending",
+                "created_at": "2026-02-08T00:00:00.000Z",
+                "updated_at": "2026-02-08T00:00:00.000Z"
+              }
             }
           }'
           
